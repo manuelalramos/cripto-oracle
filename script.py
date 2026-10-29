@@ -4,12 +4,31 @@ import oracledb
 
 # CONFIGURACOES DO BANCO ORACLE 
 # Coloque aqui o seu RM e a sua senha do Oracle da FIAP
-ORACLE_USER = "seu_rm"
-ORACLE_PASSWORD = "sua_senha"
+ORACLE_USER = "rm572956"
+ORACLE_PASSWORD = "020208"
 ORACLE_DSN = "oracle.fiap.com.br:1521/ORCL"
 
 # API COINGECKO
 API_URL = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false"
+
+def consumir_api(url):
+    print("[1/4] Consumindo API publica...")
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()  # gera erro se o status for 4xx ou 5xx
+        dados = response.json()
+        print(f"-> Sucesso! {len(dados)} registros obtidos da API.")
+        return dados
+    except requests.exceptions.HTTPError as erro_http:
+        print(f"Erro HTTP ao acessar a API: {erro_http}")
+    except requests.exceptions.ConnectionError as erro_conexao:
+        print(f"Erro de conexao com a API: {erro_conexao}")
+    except requests.exceptions.Timeout:
+        print("Erro: a API demorou demais para responder (timeout).")
+    except Exception as erro:
+        print(f"Erro inesperado ao consumir a API: {erro}")
+
+    return None
 
 def definir_categoria(market_cap_bilhoes):
     if market_cap_bilhoes >= 100:
@@ -86,3 +105,49 @@ def criar_tabela(connection):
         return False
     finally:
         cursor.close()
+
+def persistir_dados(connection, dados):
+    # Apaga o ranking antigo e insere o novo, tudo na mesma transacao
+    print("[3/4] Gravando dados no banco Oracle...")
+    sql_insert = """
+    INSERT INTO TB_CRIPTOMOEDAS (ID, SYMBOL, NOME, PRECO_USD, MARKET_CAP_BILHOES, CATEGORIA)
+    VALUES (:id, :symbol, :nome, :preco_usd, :market_cap_bilhoes, :categoria)
+    """
+    cursor = connection.cursor()
+    try:
+        cursor.execute("DELETE FROM TB_CRIPTOMOEDAS")
+        for registro in dados:
+            cursor.execute(sql_insert, registro)
+
+        connection.commit()  # deu tudo certo: salva
+        print(f"[4/4] {len(dados)} registros inseridos. COMMIT realizado!")
+    except oracledb.Error as erro:
+        connection.rollback()  # deu erro: desfaz tudo
+        print(f"Erro ao inserir os dados. ROLLBACK realizado. Detalhes: {erro}")
+    finally:
+        cursor.close()
+
+
+def main():
+    dados_api = consumir_api(API_URL)
+    if not dados_api:
+        print("Execucao interrompida porque a API falhou.")
+        sys.exit(1)
+
+    dados_transformados = transformar_dados(dados_api)
+
+    conn = conectar_oracle()
+    if conn is None:
+        print("Execucao interrompida porque nao foi possivel conectar no banco.")
+        sys.exit(1)
+
+    try:
+        if criar_tabela(conn):
+            persistir_dados(conn, dados_transformados)
+    finally:
+        conn.close()
+        print("Conexao com o Oracle encerrada.")
+
+
+if __name__ == "__main__":
+    main()
