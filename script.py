@@ -47,3 +47,42 @@ def transformar_dados(dados_brutos):
 
     print(f"-> {len(dados_processados)} registros transformados com sucesso.")
     return dados_processados
+
+def conectar_oracle():
+    try:
+        connection = oracledb.connect(
+            user=ORACLE_USER,
+            password=ORACLE_PASSWORD,
+            dsn=ORACLE_DSN
+        )
+        return connection
+    except oracledb.Error as erro:
+        print(f"Erro ao conectar no Oracle: {erro}")
+        return None
+
+
+def criar_tabela(connection):
+    # Cria a tabela; se ela ja existir o Oracle da o erro ORA-00955 e a gente so avisa
+    sql_create = """
+    CREATE TABLE TB_CRIPTOMOEDAS (
+        ID VARCHAR2(50) PRIMARY KEY,
+        SYMBOL VARCHAR2(10) NOT NULL,
+        NOME VARCHAR2(100) NOT NULL,
+        PRECO_USD NUMBER(15, 2),
+        MARKET_CAP_BILHOES NUMBER(10, 2),
+        CATEGORIA VARCHAR2(20)
+    )
+    """
+    cursor = connection.cursor()
+    try:
+        cursor.execute(sql_create)
+        print("-> Tabela TB_CRIPTOMOEDAS criada com sucesso.")
+        return True
+    except oracledb.Error as erro:
+        if "ORA-00955" in str(erro):
+            print("-> Tabela TB_CRIPTOMOEDAS ja existe no banco.")
+            return True
+        print(f"Erro ao criar a tabela: {erro}")
+        return False
+    finally:
+        cursor.close()
