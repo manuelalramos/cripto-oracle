@@ -4,8 +4,8 @@ import oracledb
 
 # CONFIGURACOES DO BANCO ORACLE 
 # Coloque aqui o seu RM e a sua senha do Oracle da FIAP
-ORACLE_USER = "rm572956"
-ORACLE_PASSWORD = "020208"
+ORACLE_USER = "seu_user"
+ORACLE_PASSWORD = "sua_senha"
 ORACLE_DSN = "oracle.fiap.com.br:1521/ORCL"
 
 # API COINGECKO
